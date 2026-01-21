@@ -111,8 +111,19 @@ class ConfigManager:
     
     def _validate(self) -> None:
         """验证配置有效性"""
-        if not self.config.get("target_url"):
+        target_url = self.config.get("target_url", "")
+        
+        if not target_url:
             raise ValueError("配置错误: target_url 不能为空")
+        
+        # 如果是 JSONL 文件，验证文件是否存在
+        if target_url.lower().endswith('.jsonl'):
+            if not Path(target_url).exists():
+                raise ValueError(f"配置错误: JSONL 文件不存在 - {target_url}")
+            # 验证 jsonl_input 配置
+            jsonl_input = self.config.get("jsonl_input", {})
+            if not jsonl_input.get("url_field"):
+                self.logger.warning("jsonl_input.url_field 未配置，将使用默认值 'matched_url'")
         
         # 验证正则表达式
         try:
@@ -130,6 +141,101 @@ class ConfigManager:
             else:
                 return default
         return value if value is not None else default
+
+
+# =============================================================================
+# URL 来源解析模块
+# =============================================================================
+
+class TargetURLParser:
+    """目标 URL 解析器：支持单个 URL 或 JSONL 文件输入"""
+    
+    def __init__(self, config: ConfigManager):
+        """
+        初始化解析器
+        
+        Args:
+            config: 配置管理器实例
+        """
+        self.config = config
+        self.logger = logging.getLogger(self.__class__.__name__)
+    
+    def is_jsonl_file(self, target: str) -> bool:
+        """
+        判断目标是否为 JSONL 文件
+        
+        Args:
+            target: 目标字符串
+            
+        Returns:
+            是否为 JSONL 文件
+        """
+        # 如果是以 .jsonl 结尾且文件存在，则视为 JSONL 文件
+        if target.lower().endswith('.jsonl'):
+            return Path(target).exists()
+        return False
+    
+    def parse_urls(self) -> list[str]:
+        """
+        解析目标 URL 列表
+        
+        Returns:
+            URL 列表
+        """
+        target_url = self.config.get("target_url", "")
+        
+        if self.is_jsonl_file(target_url):
+            return self._load_urls_from_jsonl(target_url)
+        else:
+            # 单个 URL
+            return [target_url] if target_url else []
+    
+    def _load_urls_from_jsonl(self, jsonl_path: str) -> list[str]:
+        """
+        从 JSONL 文件中加载 URL 列表
+        
+        Args:
+            jsonl_path: JSONL 文件路径
+            
+        Returns:
+            URL 列表
+        """
+        jsonl_input_config = self.config.get("jsonl_input", {})
+        url_field = jsonl_input_config.get("url_field", "matched_url")
+        
+        urls = []
+        seen_urls = set()  # 用于去重
+        
+        self.logger.info(f"从 JSONL 文件加载 URL: {jsonl_path}")
+        self.logger.info(f"URL 字段: {url_field}")
+        
+        try:
+            with open(jsonl_path, "r", encoding="utf-8") as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    try:
+                        record = json.loads(line)
+                        url = record.get(url_field, "")
+                        
+                        if url and url not in seen_urls:
+                            urls.append(url)
+                            seen_urls.add(url)
+                            
+                    except json.JSONDecodeError as e:
+                        self.logger.warning(f"第 {line_num} 行 JSON 解析错误: {e}")
+                        continue
+            
+            self.logger.info(f"从 JSONL 文件加载了 {len(urls)} 个 URL")
+            
+        except FileNotFoundError:
+            self.logger.error(f"JSONL 文件不存在: {jsonl_path}")
+        except Exception as e:
+            self.logger.error(f"读取 JSONL 文件失败: {e}")
+        
+        return urls
 
 
 # =============================================================================
@@ -562,14 +668,22 @@ class CrawlerService:
         
         return CrawlerRunConfig(**config_kwargs)
     
-    async def crawl(self) -> dict[str, Any]:
+    async def crawl(self, target_url: Optional[str] = None) -> dict[str, Any]:
         """
         执行爬取任务
+        
+        Args:
+            target_url: 目标 URL（可选，不传则使用配置中的 target_url）
         
         Returns:
             爬取结果摘要
         """
-        target_url = self.config.get("target_url")
+        if target_url is None:
+            target_url = self.config.get("target_url")
+        
+        # 更新 URL 处理器的 base_url
+        self.url_processor.base_url = target_url
+        
         cache_path = self.config.get("cache_path", "./.crawl4ai_cache")
         
         self.logger.info(f"开始爬取: {target_url}")
@@ -715,7 +829,7 @@ async def main(config_path: str = "config.yaml") -> dict[str, Any]:
         config_path: 配置文件路径
         
     Returns:
-        爬取结果摘要
+        爬取结果摘要（批量模式返回汇总结果）
     """
     # 加载配置
     config = ConfigManager(config_path)
@@ -738,25 +852,105 @@ async def main(config_path: str = "config.yaml") -> dict[str, Any]:
     logger.info("Crawl4AI 通用爬虫服务启动")
     logger.info("=" * 60)
     
-    # 创建爬虫服务并执行
+    # 解析目标 URL（支持单个 URL 或 JSONL 文件）
+    url_parser = TargetURLParser(config)
+    target_urls = url_parser.parse_urls()
+    
+    if not target_urls:
+        logger.error("没有可爬取的 URL")
+        return {"success": False, "error": "没有可爬取的 URL"}
+    
+    # 获取延迟配置
+    jsonl_input_config = config.get("jsonl_input", {})
+    delay_between_urls = jsonl_input_config.get("delay_between_urls", 2.0)
+    
+    # 判断是单个 URL 还是批量模式
+    is_batch_mode = len(target_urls) > 1
+    
+    if is_batch_mode:
+        logger.info(f"批量模式: 共 {len(target_urls)} 个 URL 待爬取")
+    
+    # 创建爬虫服务
     service = CrawlerService(config)
-    result = await service.crawl()
     
-    # 输出结果摘要
+    # 汇总结果
+    batch_summary = {
+        "success": True,
+        "total_urls": len(target_urls),
+        "success_count": 0,
+        "failed_count": 0,
+        "total_links": 0,
+        "matched_links": 0,
+        "saved_links": 0,
+        "results": [],
+        "errors": []
+    }
+    
+    # 遍历所有 URL 进行爬取
+    for idx, url in enumerate(target_urls, 1):
+        if is_batch_mode:
+            logger.info("-" * 60)
+            logger.info(f"[{idx}/{len(target_urls)}] 开始爬取: {url}")
+        
+        result = await service.crawl(url)
+        batch_summary["results"].append(result)
+        
+        # 汇总统计
+        if result["success"]:
+            batch_summary["success_count"] += 1
+        else:
+            batch_summary["failed_count"] += 1
+            if result.get("error"):
+                batch_summary["errors"].append({
+                    "url": url,
+                    "error": result["error"]
+                })
+        
+        batch_summary["total_links"] += result.get("total_links", 0)
+        batch_summary["matched_links"] += result.get("matched_links", 0)
+        batch_summary["saved_links"] += result.get("saved_links", 0)
+        
+        # 单个 URL 模式下直接输出结果
+        if not is_batch_mode:
+            logger.info("=" * 60)
+            logger.info("爬取结果摘要")
+            logger.info("=" * 60)
+            logger.info(f"  目标 URL: {result['target_url']}")
+            logger.info(f"  页面标题: {result['page_title']}")
+            logger.info(f"  总链接数: {result['total_links']}")
+            logger.info(f"  匹配链接: {result['matched_links']}")
+            logger.info(f"  新保存数: {result['saved_links']}")
+            logger.info(f"  执行状态: {'成功' if result['success'] else '失败'}")
+            
+            if result['error']:
+                logger.error(f"  错误信息: {result['error']}")
+            
+            return result
+        
+        # 批量模式下，URL 之间添加延迟
+        if idx < len(target_urls):
+            logger.info(f"等待 {delay_between_urls} 秒后继续...")
+            await asyncio.sleep(delay_between_urls)
+    
+    # 批量模式输出汇总结果
+    batch_summary["success"] = batch_summary["failed_count"] == 0
+    
     logger.info("=" * 60)
-    logger.info("爬取结果摘要")
+    logger.info("批量爬取结果汇总")
     logger.info("=" * 60)
-    logger.info(f"  目标 URL: {result['target_url']}")
-    logger.info(f"  页面标题: {result['page_title']}")
-    logger.info(f"  总链接数: {result['total_links']}")
-    logger.info(f"  匹配链接: {result['matched_links']}")
-    logger.info(f"  新保存数: {result['saved_links']}")
-    logger.info(f"  执行状态: {'成功' if result['success'] else '失败'}")
+    logger.info(f"  总 URL 数: {batch_summary['total_urls']}")
+    logger.info(f"  成功数量: {batch_summary['success_count']}")
+    logger.info(f"  失败数量: {batch_summary['failed_count']}")
+    logger.info(f"  总链接数: {batch_summary['total_links']}")
+    logger.info(f"  匹配链接: {batch_summary['matched_links']}")
+    logger.info(f"  保存链接: {batch_summary['saved_links']}")
     
-    if result['error']:
-        logger.error(f"  错误信息: {result['error']}")
+    if batch_summary["errors"]:
+        logger.warning("失败的 URL:")
+        for err in batch_summary["errors"]:
+            logger.warning(f"  - {err['url']}: {err['error']}")
     
-    return result
+    return batch_summary
 
 
 if __name__ == "__main__":

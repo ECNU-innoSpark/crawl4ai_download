@@ -51,8 +51,9 @@ class DownloaderConfig:
         # 获取下载器配置
         self.downloader = self.config.get("downloader", {})
         
-        # 设置默认值
-        self.input_file = self.downloader.get("input_file", "results.jsonl")
+        # 设置默认值（支持 JSONL 文件或单个 URL）
+        self.input = self.downloader.get("input", self.downloader.get("input_file", "results.jsonl"))
+        self.url_field = self.downloader.get("url_field", "matched_url")
         self.output_file = self.downloader.get("output_file", "final_papers.jsonl")
         self.download_dir = Path(self.downloader.get("download_dir", "./downloads"))
         self.max_concurrent = self.downloader.get("max_concurrent", 5)
@@ -294,31 +295,54 @@ class PDFDownloaderService:
         # 结果记录
         self.results: list[dict] = []
     
+    def _is_url(self, text: str) -> bool:
+        """判断是否为 URL"""
+        return text.startswith("http://") or text.startswith("https://")
+    
     def load_input_urls(self) -> list[dict]:
         """
         加载输入的 URL 列表
+        支持 JSONL 文件或单个 URL
         
         Returns:
             URL 记录列表
         """
-        input_path = Path(self.config.input_file)
+        input_value = self.config.input
+        
+        url_field = self.config.url_field
+        
+        # 判断是单个 URL 还是 JSONL 文件
+        if self._is_url(input_value):
+            # 单个 URL 模式
+            self.logger.info(f"单个 URL 模式: {input_value}")
+            return [{
+                url_field: input_value,
+                "page_title": ""
+            }]
+        
+        # JSONL 文件模式
+        input_path = Path(input_value)
         
         if not input_path.exists():
             raise FileNotFoundError(f"输入文件不存在: {input_path}")
         
         records = []
+        seen_urls = set()
+        
         with open(input_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
                     try:
                         record = json.loads(line)
-                        if record.get("matched_url"):
+                        url = record.get(url_field, "")
+                        if url and url not in seen_urls:
                             records.append(record)
+                            seen_urls.add(url)
                     except json.JSONDecodeError:
                         continue
         
-        self.logger.info(f"加载了 {len(records)} 个 URL")
+        self.logger.info(f"从 JSONL 加载了 {len(records)} 个 URL (字段: {url_field})")
         return records
     
     
@@ -573,7 +597,7 @@ class PDFDownloaderService:
         """
         使用 Playwright 浏览器直接下载 PDF
         """
-        url = record.get("matched_url", "")
+        url = record.get(self.config.url_field, "")
         source_title = record.get("page_title", "")
         
         self.logger.info(f"[{index + 1}/{total}] 处理: {url}")

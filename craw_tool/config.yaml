@@ -3,11 +3,19 @@
 # =============================================================================
 
 # 目标配置
-target_url: "https://papers.nips.cc/"      #"https://dl.acm.org/doi/proceedings/10.1145/3706598#heading3"  # 目标起始地址
+# target_url 可以是：
+#   1. 单个 URL: "https://papers.nips.cc/"
+#   2. JSONL 文件路径: "results_nips.jsonl" (会读取每一行的 URL 进行批量爬取)
+target_url: "https://papers.nips.cc/paper_files/paper/2024"      # 目标起始地址或 JSONL 文件路径  #https://papers.nips.cc/  
+
+# JSONL 输入配置（当 target_url 是 JSONL 文件时生效）
+jsonl_input:
+  url_field: "matched_url"                # 从 JSONL 中读取 URL 的字段名
+  delay_between_urls: 2.0                 # 每个 URL 之间的延迟（秒）
 
 # URL 过滤正则表达式
 # 匹配 ACM 论文链接格式: https://dl.acm.org/doi/10.1145/数字.数字
-regex_pattern: "^https://papers\\.nips\\.cc/paper_files/paper/\\d{4}/?$"  #"https://dl\\.acm\\.org/doi/10\\.1145/\\d+\\.\\d+"
+regex_pattern: 'https://papers\.nips\.cc/paper_files/paper/\d{4}/hash/.*-Abstract\.html'     # 使用单引号避免转义问题
 
 # 动态页面展开配置
 click_selector: ".accordion-tab, .section__separator"        # 需要点击展开页面的 CSS 选择器
@@ -20,7 +28,7 @@ cache_path: "./.crawl4ai_cache"     # 缓存存储路径
 enable_cache: ture                  # 是否启用缓存
 
 # 输出配置
-output_file: "results_nips.jsonl"        # 结果存入的文件名
+output_file: "results_nips_level2.jsonl"        # 结果存入的文件名
 
 # 浏览器配置
 browser:
@@ -43,8 +51,12 @@ logging:
 # PDF 下载配置
 # =============================================================================
 downloader:
-  # 输入文件（之前爬取的链接列表）
-  input_file: "results.jsonl"
+  # 输入配置
+  # input 可以是：
+  #   1. JSONL 文件路径: "results.jsonl"
+  #   2. 单个 URL: "https://dl.acm.org/doi/10.1145/xxx"
+  input: "results.jsonl"
+  url_field: "matched_url"                # JSONL 中的 URL 字段名（仅 JSONL 模式使用）
   
   # 输出配置
   output_file: "final_papers.jsonl"   # 下载记录文件
@@ -68,3 +80,45 @@ downloader:
     - "(\\d{4})\\s+(CHI|Conference|ICML|NeurIPS)"
 
   default_year: "Unknown"
+
+# =============================================================================
+# 页面截图/HTML保存配置
+# =============================================================================
+capturer:
+  # 输入配置
+  # input 可以是：
+  #   1. JSONL 文件路径: "results_nips.jsonl"
+  #   2. 单个 URL: "https://papers.nips.cc/paper_files/paper/2024"
+  input: "https://papers.nips.cc/paper_files/paper/2020"  #"results_nips.jsonl"
+  url_field: "matched_url"                # JSONL 中的 URL 字段名（仅 JSONL 模式使用）
+  
+  # 输出配置
+  output_dir: "./captures"                # 输出目录
+  output_file: "capture_results.jsonl"    # 结果记录文件
+  
+  # 保存选项
+  save_screenshot: true                   # 是否保存截图
+  save_html: true                         # 是否保存 HTML
+  
+  # 截图配置
+  screenshot:
+    full_page: true                       # 是否截取整个页面（false 则只截取可视区域）
+    format: "png"                         # 截图格式: png, jpeg
+    quality: 80                           # JPEG 质量 (1-100)，仅对 jpeg 格式有效
+    max_height: 30000                     # 最大截图高度（像素），超过则改用可视区域截图，防止内存溢出
+    
+  # HTML 配置
+  html:
+    save_clean: false                     # 是否保存清理后的 HTML（去除脚本等）
+    
+  # 文件命名
+  naming:
+    use_title: true                       # 使用页面标题作为文件名
+    use_hash: true                        # 使用 URL 哈希作为文件名（当标题不可用时）
+    max_filename_length: 100              # 文件名最大长度
+  
+  # 执行控制
+  request_delay: 2.0                      # 请求间隔（秒）
+  page_load_timeout: 60000                # 页面加载超时（毫秒）
+  wait_after_load: 3.0                    # 页面加载后等待时间（秒）
+  max_retries: 2                          # 失败重试次数
