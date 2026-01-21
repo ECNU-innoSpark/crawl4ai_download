@@ -1,0 +1,155 @@
+# =============================================================================
+# ACM CHI 论文爬取一键配置 (2021-2025)
+# =============================================================================
+# 
+# 使用方法:
+#   python run.py -c config_chi.yaml                  # 运行所有启用的任务
+#   python run.py -c config_chi.yaml --crawl-only     # 只运行爬虫任务
+#   python run.py -c config_chi.yaml --capture-only   # 只运行截图任务
+#   python run.py -c config_chi.yaml --download-only  # 只运行下载任务
+#   python run.py -c config_chi.yaml --task 1         # 只运行第1个爬虫任务
+#   python run.py -c config_chi.yaml --task 1,2       # 只运行第1、2个爬虫任务
+#
+# 工作流程:
+#   Level 1: dl.acm.org/conference/chi/proceedings → 获取各年份会议链接 → chi_level1_proceedings.jsonl
+#   Level 2: 各年份 proceedings 页面 → 获取论文链接 → chi_level2_papers.jsonl
+#   Level 3: 论文详情页 → 获取 PDF 链接 → chi_level3_pdfs.jsonl (可选)
+#
+# ACM CHI URL 结构说明:
+#   - 会议主页: https://dl.acm.org/conference/chi/proceedings
+#   - Proceedings: https://dl.acm.org/doi/proceedings/10.1145/3613904 (CHI 2024)
+#   - 论文页面: https://dl.acm.org/doi/10.1145/3613904.3642xxx
+#   - PDF 链接: https://dl.acm.org/doi/pdf/10.1145/3613904.3642xxx
+#
+# =============================================================================
+
+# =============================================================================
+# 全局配置（所有任务共享）
+# =============================================================================
+global:
+  # 浏览器配置
+  browser:
+    headless: false                   # true: 无头模式（后台运行）
+                                      # false: 显示浏览器窗口（首次运行建议 false，便于手动通过 Cloudflare 验证）
+    verbose: true                     # 是否输出详细日志
+  
+  # 爬取配置
+  crawler:
+    timeout: 120000                   # 页面加载超时时间（毫秒），120000 = 2分钟
+    wait_until: "load"                # 等待策略: domcontentloaded, load, networkidle
+    delay_before_return: 15.0         # 返回 HTML 前等待时间（秒），ACM 有 Cloudflare 保护，需要等待较长时间
+  
+  # 日志配置
+  logging:
+    level: "INFO"                     # 日志级别: DEBUG, INFO, WARNING, ERROR
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # 缓存配置
+  cache_path: "./.crawl4ai_cache"     # 浏览器缓存和 cookies 存储路径
+
+# =============================================================================
+# 爬虫任务配置（按顺序执行）
+# =============================================================================
+crawl_tasks:
+  # ---------------------------------------------------------------------------
+  # 第一步：爬取 CHI Proceedings 主页，获取各年份会议链接
+  # ---------------------------------------------------------------------------
+  - name: "Level 1 - 获取年份 Proceedings 列表"
+    enabled: true
+    target_url: "https://dl.acm.org/conference/chi/proceedings"
+    regex_pattern: 'https://dl\.acm\.org/doi/proceedings/10\.1145/\d+'
+                                      # 匹配 proceedings 页面链接
+                                      # 例如: https://dl.acm.org/doi/proceedings/10.1145/3613904
+    output_file: "chi_level1_proceedings.jsonl"
+    click_selector: ".accordion-tab, .section__separator, .load-more, .pagination__btn--next, .toc__section"
+                                      # ACM 页面可能有展开按钮
+    max_clicks: 50                    # 尝试点击展开更多内容
+    click_delay_ms: 1500
+    jsonl_input:
+      url_field: "matched_url"
+      delay_between_urls: 3.0
+  
+  # ---------------------------------------------------------------------------
+  # 第二步：爬取每个 Proceedings 页面，获取论文列表
+  # ---------------------------------------------------------------------------
+  - name: "Level 2 - 获取论文列表"
+    enabled: true
+    target_url: "chi_level1_proceedings.jsonl"  # 使用上一步的输出
+    regex_pattern: 'https://dl\.acm\.org/doi/10\.1145/\d+\.\d+'
+                                      # 匹配论文详情页链接
+                                      # 例如: https://dl.acm.org/doi/10.1145/3613904.3642123
+    output_file: "chi_level2_papers.jsonl"
+    click_selector: ".accordion-tab, .section__separator, .load-more, .pagination__btn--next, .toc__section"
+                                      # 点击展开和翻页
+    max_clicks: 200                   # CHI 论文较多，需要多次点击展开
+    click_delay_ms: 1500
+    jsonl_input:
+      url_field: "matched_url"
+      delay_between_urls: 5.0         # ACM 有速率限制，增加延迟
+
+  # ---------------------------------------------------------------------------
+  # 第三步：爬取论文详情页，获取 PDF 链接（可选）
+  # ---------------------------------------------------------------------------
+  # - name: "Level 3 - 获取 PDF 链接"
+  #   enabled: false
+  #   target_url: "chi_level2_papers.jsonl"
+  #   regex_pattern: 'https://dl\.acm\.org/doi/pdf/10\.1145/\d+\.\d+'
+  #   output_file: "chi_level3_pdfs.jsonl"
+  #   click_selector: ""
+  #   max_clicks: 0
+  #   jsonl_input:
+  #     url_field: "matched_url"
+  #     delay_between_urls: 2.0
+
+# =============================================================================
+# 页面截图配置（可选）
+# =============================================================================
+capture_task:
+  enabled: false
+  input: "chi_level2_papers.jsonl"
+  url_field: "matched_url"
+  output_dir: "./captures_chi"
+  output_file: "chi_capture_results.jsonl"
+  save_screenshot: true
+  save_html: true
+  screenshot:
+    full_page: true
+    format: "png"
+    max_height: 30000
+  request_delay: 3.0                  # ACM 需要较长延迟
+  page_load_timeout: 60000
+  wait_after_load: 5.0
+  max_retries: 2
+
+# =============================================================================
+# PDF 下载配置（可选）
+# =============================================================================
+download_task:
+  enabled: false
+  input: "chi_level2_papers.jsonl"    # 直接从论文页面提取 PDF
+  url_field: "matched_url"
+  output_file: "chi_download_results.jsonl"
+  download_dir: "./downloads_chi"     # PDF 保存目录（按年份分类）
+  max_concurrent: 1                   # ACM 速率限制严格，建议 1
+  request_delay: 5.0                  # 每次请求间隔（秒），ACM 需要较长延迟
+  download_timeout: 120
+  max_retries: 3
+  retry_delay: 15.0                   # 重试等待时间（秒）
+  pdf_patterns:                       # PDF 链接匹配正则
+    - 'https://dl\.acm\.org/doi/pdf/10\.1145/\d+\.\d+'
+    - '/doi/pdf/10\.1145/\d+\.\d+'
+  year_patterns:                      # 年份提取正则
+    - 'CHI\s*[''"]?(\d{2,4})'         # 匹配 CHI '24, CHI 2024 等
+    - '(\d{4})\s+CHI'
+    - 'citation_year[^>]*content="(\d{4})"'
+  default_year: "Unknown"
+
+# =============================================================================
+# CHI 年份与 DOI 对应关系（供参考）
+# =============================================================================
+# CHI 2025: 待定
+# CHI 2024: 10.1145/3613904
+# CHI 2023: 10.1145/3544548
+# CHI 2022: 10.1145/3491102
+# CHI 2021: 10.1145/3411764
+# =============================================================================
