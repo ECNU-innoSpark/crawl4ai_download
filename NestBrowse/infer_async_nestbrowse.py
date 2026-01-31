@@ -209,6 +209,7 @@ if __name__ == '__main__':
 
 
     input_path = f"./data/{benchmark_name}.jsonl"
+    # 若需重新跑全量，可改后缀避免复用已有结果，例如: _run2.jsonl
     output_path = f"./results/{MODEL_NAME}_results_{benchmark_name}.jsonl"
 
     search = Search()
