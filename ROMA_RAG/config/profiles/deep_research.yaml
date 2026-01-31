@@ -1,0 +1,427 @@
+# General Agent Profile
+# A versatile configuration for general-purpose agent task execution
+# Includes web browsing, code execution, file operations, and fundamental tools
+
+# Default agent configurations
+agents:
+  # Atomizer: Fast decision-making (DR版本 - 倾向分解以支持深度研究)
+  atomizer:
+    llm:
+      # 新配置 - Google Gemini Flash（通过 packyapi 代理，速率限制更宽松）
+      # model: gemini/gemini-3-flash-preview
+      # api_key: ${oc.env:GOOGLE_API_KEY}
+      # base_url: https://www.packyapi.com/v1
+      # temperature: 0.1
+      # max_tokens: 8000
+      
+      # 旧配置 - 自建代理（速率限制严格，已禁用）
+      model: openai/gemini-3-flash-preview
+      api_key: ${oc.env:OPENAI_API_KEY}
+      base_url: http://49.51.37.239:3006/v1
+      temperature: 0.1
+      max_tokens: 8000
+    # 使用 DR 版本 atomizer - 与 Planner/Executor/Aggregator 保持一致，支持深度研究分解
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_atomizer_seed:ATOMIZER_DR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.dr_atomizer_seed:ATOMIZER_DR_DEMOS"
+
+  # Planner: Strategic planning
+  planner:
+    llm:
+      # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+      # model: gemini/gemini-3-pro-preview
+      # api_key: ${oc.env:GOOGLE_API_KEY}
+      # base_url: https://www.packyapi.com/v1
+      # temperature: 0.7
+      # max_tokens: 16000
+      
+      # 旧配置 - 自建代理（速率限制严格，已禁用）
+      model: openai/gemini-3-pro-preview
+      api_key: ${oc.env:OPENAI_API_KEY}
+      base_url: http://49.51.37.239:3006/v1
+      temperature: 1.0
+      max_tokens: 16000
+    # Load DR planner seed prompt - 专为深度研究设计，强调隔离性和多维度覆盖
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_planner_seed:PLANNER_DR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.dr_planner_seed:PLANNER_DR_DEMOS"
+    agent_config:
+      max_subtasks: 5  # 限制为5个子任务，避免过度分解，保持任务可管理性
+      # 增加对子任务描述的要求，防止模糊导致的重复
+    prompt_metadata:
+      extra_instructions: "严格控制子任务数量在5个以内。确保子任务之间完全独立（MECE原则），严禁生成目标相似的重复搜索任务。优先质量而非数量，每个子任务都应该有明确且不可替代的价值。"
+
+
+  # Default Executor (fallback for unmapped task types)
+  executor:
+    llm:
+      # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+      # model: gemini/gemini-3-pro-preview
+      # api_key: ${oc.env:GOOGLE_API_KEY}
+      # base_url: https://www.packyapi.com/v1
+      # temperature: 0.7
+      # max_tokens: 16000
+      
+      # 旧配置 - 自建代理（速率限制严格，已禁用）
+      model: openai/gemini-3-pro-preview
+      api_key: ${oc.env:OPENAI_API_KEY}
+      base_url: http://49.51.37.239:3006/v1
+      temperature: 1.0
+      max_tokens: 16000
+    prediction_strategy: chain_of_thought
+    # Load executor seed prompt and demos for improved task execution
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_executor_seed:EXECUTOR_DR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.dr_executor_seed:EXECUTOR_DR_DEMOS"
+    agent_config:
+      max_executions: 2  # 从3减少到2，防止执行器在死链上浪费太多时间
+
+
+    # Default fundamental toolkits
+    # Note: 默认 executor 不直接提供搜索工具
+    # 搜索功能由 RETRIEVE executor 的 AdaptiveRetrieveToolkit 提供
+    toolkits: []
+      # - class_name: E2BToolkit
+      #   enabled: true
+      #   toolkit_config:
+      #     template: ${oc.env:E2B_TEMPLATE_ID,roma-sandbox-sc}
+      #     timeout: 900
+      #     max_lifetime_hours: 23.5
+      #     auto_reinitialize: true
+
+      # - class_name: FileToolkit
+      #   enabled: true
+      #   toolkit_config:
+      #     enable_delete: false
+      #     max_file_size: 10485760  # 10MB
+
+      # - class_name: CalculatorToolkit
+      #   enabled: true
+
+  # Aggregator: Synthesis
+  aggregator:
+    llm:
+      # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+      # model: anthropic/claude-sonnet-4-5-20250929
+      # api_key: ${oc.env:ANTHROPIC_API_KEY}
+      # base_url: https://www.packyapi.com
+      # temperature: 1.0
+      # max_tokens: 16000
+      
+      # 旧配置 - 自建代理（速率限制严格，已禁用）
+      model: openai/gemini-3-pro-preview
+      api_key: ${oc.env:OPENAI_API_KEY}
+      base_url: http://49.51.37.239:3006/v1
+      temperature: 0.7
+      max_tokens: 25000
+    # Load aggregator seed prompt for improved result synthesis
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_aggregator_seed:AGGREGATOR_DR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.dr_aggregator_seed:AGGREGATOR_DR_DEMOS"
+
+  # Verifier: Validation
+  verifier:
+    llm:
+      # 新配置 - Google Gemini Flash（通过 packyapi 代理，速率限制更宽松）
+      # model: gemini/gemini-3-flash-preview
+      # api_key: ${oc.env:GOOGLE_API_KEY}
+      # base_url: https://www.packyapi.com/v1
+      # temperature: 0.1
+      # max_tokens: 16000
+      
+      # 旧配置 - 自建代理（速率限制严格，已禁用）
+      model: openai/o3-mini
+      api_key: ${oc.env:OPENAI_API_KEY}
+      base_url: http://49.51.37.239:3006/v1
+      temperature: 1.0
+      max_tokens: 16000
+    # Load verifier seed prompt and demos for improved output validation
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.verifier_seed:VERIFIER_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.verifier_seed:VERIFIER_DEMOS"
+
+# Task-aware agent mapping for Deep Research executor
+# Maps different task types to specialized prompts and configurations
+agent_mapping:
+  planners:
+    # RETRIEVE: 检索型任务的"二次分解"——将宽泛检索拆成可并行的检索子任务
+    RETRIEVE:
+      llm:
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 16000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_planner_retrieve_seed:PLANNER_DR_RETRIEVE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_planner_retrieve_seed:PLANNER_DR_RETRIEVE_DEMOS"
+      agent_config:
+        max_subtasks: 8
+
+    # THINK: 分析型任务的"二次分解"——将宽泛推理拆成互补分析子任务
+    THINK:
+      llm:
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 16000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_planner_think_seed:PLANNER_DR_THINK_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_planner_think_seed:PLANNER_DR_THINK_DEMOS"
+      agent_config:
+        max_subtasks: 5
+
+    # WRITE: 写作型任务的"二次分解"——将宽泛写作拆成章节/段落级写作子任务
+    WRITE:
+      llm:
+        # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+        # model: gemini/gemini-3-pro-preview
+        # api_key: ${oc.env:GOOGLE_API_KEY}
+        # base_url: https://www.packyapi.com/v1
+        # temperature: 0.7
+        # max_tokens: 16000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 16000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_planner_write_seed:PLANNER_DR_WRITE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_planner_write_seed:PLANNER_DR_WRITE_DEMOS"
+      agent_config:
+        max_subtasks: 5
+
+  executors:
+    # RETRIEVE: 信息检索任务 - 自适应选择内部知识库或外部搜索
+    # Use cases: "搜索关于X的最新研究", "获取Y的统计数据", "查找Z的官方文档"
+    RETRIEVE:
+      llm:
+        # 新配置 - Google Gemini Flash（通过 packyapi 代理，稳定的工具调用能力）
+        # model: anthropic/claude-sonnet-4-5-20250929
+        # api_key: ${oc.env:ANTHROPIC_API_KEY}
+        # base_url: https://www.packyapi.com
+        # temperature: 1.0
+        # max_tokens: 16000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-flash-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 16000
+      prediction_strategy: react  # RETRIEVE 必须用 ReAct 来调用工具
+      # 使用专门的 DR Retrieve prompt - 强调 URL 引用和数据精确
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_executor_retrieve_seed:EXECUTOR_RETRIEVE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_executor_retrieve_seed:EXECUTOR_RETRIEVE_DEMOS"
+      agent_config:
+        max_executions: 2  # 检索任务较简单，减少执行次数
+      
+      toolkits:
+        # 自适应检索 Toolkit - 智能选择 RAGFlow（内部）或 Web 搜索（外部）
+        - class_name: AdaptiveRetrieveToolkit
+          enabled: true
+          toolkit_config:
+            # RAGFlow 配置（内部知识库）
+            api_url: ${oc.env:RAGFLOW_API_URL}
+            api_key: ${oc.env:RAGFLOW_API_KEY}
+            kb_id: ${oc.env:RAGFLOW_KB_ID}
+            timeout: 30
+            
+            # Web 搜索配置（使用 MCP Exa - 提供 LLM 生成的摘要，避免上下文爆炸）
+            web_toolkit_config:
+              server_name: exa
+              server_type: http
+              url: https://mcp.exa.ai/mcp
+              headers:
+                Authorization: "Bearer ${oc.env:EXA_API_KEY}"
+              # use_storage 需要 file_storage 实例
+              # 在实际使用时，会从 executor 的 file_storage 自动继承
+              use_storage: false
+            web_tool_method: web_search_exa
+            web_tool_kwargs:
+              type: deep           # 关键：使用 "deep" 搜索类型返回详细内容和 Summary
+              useAutoprompt: true  # 启用 LLM 生成的摘要（关键功能）
+              text: true           # 启用全文（根据需要可选，防止截断）
+            
+            # 默认参数
+            top_n_default: 8
+            
+            # MLflow 日志记录
+            mlflow_logging: true
+
+    # THINK: 深度分析任务 - 多源综合、模式识别、战略分析
+    # Use cases: "分析X的趋势", "比较A和B的优劣", "评估Y的影响"
+    # Note: THINK任务专注于推理分析，不需要外部搜索工具，依赖RETRIEVE任务提供的数据
+    THINK:
+      llm:
+        # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+        # model: gemini/gemini-3-pro-preview
+        # api_key: ${oc.env:GOOGLE_API_KEY}
+        # base_url: https://www.packyapi.com/v1
+        # temperature: 0.7
+        # max_tokens: 16000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 16000
+      prediction_strategy: chain_of_thought
+      # 使用专门的 DR Think prompt - 强调逻辑推理和证据链
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_executor_think_seed:EXECUTOR_THINK_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_executor_think_seed:EXECUTOR_THINK_DEMOS"
+      agent_config:
+        max_executions: 3  # 分析任务需要更多迭代
+
+    # WRITE: 报告撰写任务 - 综合所有来源，生成结构化深度报告
+    # Use cases: "撰写关于X的研究报告", "总结Y的调研结果", "生成Z的分析文档"
+    # Note: WRITE任务专注于内容整合和表达，不需要外部搜索工具，使用RETRIEVE和THINK提供的信息
+    WRITE:
+      llm:
+        # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+        # model: gemini/gemini-3-pro-preview
+        # api_key: ${oc.env:GOOGLE_API_KEY}
+        # base_url: https://www.packyapi.com/v1
+        # temperature: 0.7
+        # max_tokens: 25000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 1.0
+        max_tokens: 25000
+      prediction_strategy: chain_of_thought
+      # 使用专门的 DR Write prompt - 强调报告结构和引用格式
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_executor_write_seed:EXECUTOR_WRITE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_executor_write_seed:EXECUTOR_WRITE_DEMOS"
+      agent_config:
+        max_executions: 3  # 写作任务主要是整合，不需要太多迭代
+
+  # Aggregators: 按 TaskType 分流（方案B）
+  # - RETRIEVE：输出结构化“证据包/数据包”（保留完整URL，便于下游复用）
+  # - THINK：输出“分析备忘录”（强调推理链/假设/冲突处理，避免学术报告八股）
+  # - WRITE：输出“长报告/白皮书级别”（越详细越好，带完整URL引用）
+  aggregators:
+    RETRIEVE:
+      llm:
+        # 新配置 - Anthropic Claude (通过 packyapi 代理)
+        # model: anthropic/claude-sonnet-4-5-20250929
+        # api_key: ${oc.env:ANTHROPIC_API_KEY}
+        # base_url: https://www.packyapi.com
+        # temperature: 0.3
+        # max_tokens: 16000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-flash-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 0.3
+        max_tokens: 16000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_aggregator_retrieve_seed:AGGREGATOR_DR_RETRIEVE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_aggregator_retrieve_seed:AGGREGATOR_DR_RETRIEVE_DEMOS"
+
+    THINK:
+      llm:
+        # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+        # model: gemini/gemini-3-pro-preview
+        # api_key: ${oc.env:GOOGLE_API_KEY}
+        # base_url: https://www.packyapi.com/v1
+        # temperature: 0.7
+        # max_tokens: 16000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 0.7
+        max_tokens: 16000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_aggregator_think_seed:AGGREGATOR_DR_THINK_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_aggregator_think_seed:AGGREGATOR_DR_THINK_DEMOS"
+
+    WRITE:
+      llm:
+        # 新配置 - Google Gemini Pro（通过 packyapi 代理，速率限制更宽松）
+        # model: gemini/gemini-3-pro-preview
+        # api_key: ${oc.env:GOOGLE_API_KEY}
+        # base_url: https://www.packyapi.com/v1
+        # temperature: 0.7
+        # max_tokens: 25000
+        
+        # 旧配置 - 自建代理（速率限制严格，已禁用）
+        model: openai/gemini-3-pro-preview
+        api_key: ${oc.env:OPENAI_API_KEY}
+        base_url: http://49.51.37.239:3006/v1
+        temperature: 0.7
+        max_tokens: 25000
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.dr_aggregator_write_seed:AGGREGATOR_DR_WRITE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.dr_aggregator_write_seed:AGGREGATOR_DR_WRITE_DEMOS"
+
+# Runtime configuration
+runtime:
+  max_depth: 2  # 从2减少到1,只允许一层分解,避免任务树过深
+  verbose: true
+  enable_logging: true
+  log_level: INFO
+  timeout: 300  # 从300秒增加到600秒(10分钟),给复杂任务更多时间
+
+# Resilience
+resilience:
+  retry:
+    enabled: true
+    max_attempts: 3  # 从2增加到3,给重试更多机会
+    strategy: exponential_backoff
+    base_delay: 1.0  # 从2.0降低到1.0,更快重试
+    max_delay: 30.0  # 从60.0降低到30.0,避免过长等待
+
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 120.0
+    half_open_max_calls: 3
+
+  checkpoint:
+    enabled: true
+    storage_path: ${oc.env:ROMA_CHECKPOINT_PATH,.checkpoints}
+    max_checkpoints: 20
+    max_age_hours: 48.0
+    compress_checkpoints: true
+    verify_integrity: true
+    # 新增：调大周期性检查点间隔，减少日志干扰
+    periodic_checkpoints_enabled: true
+    periodic_interval_seconds: 300  # 从 30 秒调大到 300 秒 (5分钟)
+
+# Storage
+storage:
+  # 建议修改为本地目录，方便查看报告
+  base_path: ${oc.env:STORAGE_BASE_PATH,./storage}
+  max_file_size: 104857600  # 100MB
+
+  postgres:
+    enabled: ${oc.env:POSTGRES_ENABLED,true}
+    connection_url: ${oc.env:DATABASE_URL,postgresql+asyncpg://localhost/roma_dspy}
+    pool_size: 10
+    max_overflow: 20
+
+# Observability
+observability:
+  mlflow:
+    # 旧配置：默认禁用 MLflow
+    # enabled: ${oc.env:MLFLOW_ENABLED,false}
+    
+    # 新配置：默认启用 MLflow（提供更完整的实验追踪）
+    enabled: ${oc.env:MLFLOW_ENABLED,true}
+    tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,http://mlflow:5000}
+    experiment_name: ROMA-General-Agent
+    log_traces: true
+    log_compiles: true
+    log_evals: true
+
+# Logging
+logging:
+  level: ${oc.env:LOG_LEVEL,INFO}
+  log_dir: ${oc.env:LOG_DIR,logs}
+  console_format: detailed
+  file_format: json
+  serialize: true
+  rotation: 500 MB
+  retention: 90 days
+  colorize: true
+  backtrace: true
+  diagnose: false
