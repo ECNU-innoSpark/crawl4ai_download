@@ -1,0 +1,8 @@
+{"question": "访问 https://news.ycombinator.com 并告诉我当前排名第一的帖子标题是什么？", "answer": ""}
+{"question": "访问 https://www.wikipedia.org 首页，点击英文版本(English)，然后告诉我今天的精选文章(Featured article)的标题是什么？", "answer": ""}
+{"question": "访问 https://github.com/trending 页面，告诉我今天 Python 语言中 star 数最多的仓库名称和描述。", "answer": ""}
+{"question": "访问 https://arxiv.org 首页，点击进入 cs.AI (Artificial Intelligence) 分类，告诉我最新一篇论文的标题。", "answer": ""}
+{"question": "访问 https://www.imdb.com/chart/top/ 页面，告诉我 IMDb Top 250 电影中排名第一的电影名称和评分。", "answer": ""}
+{"question": "访问 https://stackoverflow.com/questions 页面，告诉我当前投票数最高的问题是什么？", "answer": ""}
+{"question": "访问 https://www.reddit.com/r/programming/ 页面，告诉我当前热度最高的帖子标题。", "answer": ""}
+{"question": "访问 https://www.bbc.com/news 首页，点击 Technology 分类，告诉我第一条科技新闻的标题。", "answer": ""}
