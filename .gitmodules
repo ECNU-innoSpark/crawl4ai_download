@@ -1,0 +1,3 @@
+[submodule "ragflow"]
+	path = ragflow
+	url = https://github.com/ECNU-innoSpark/crawl4ai_download.git
