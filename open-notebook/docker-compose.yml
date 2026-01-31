@@ -1,0 +1,39 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:v2
+    user: "0:0"
+    command: start --user root --pass password --bind 0.0.0.0:8000 rocksdb:/mydata/mydatabase.db
+    ports:
+      - "8000:8000"
+    volumes:
+      - surreal_data:/mydata
+
+  open_notebook:
+    image: lfnovo/open_notebook:v1-latest
+    pull_policy: always
+    ports:
+      - "8502:8502"  # Web UI
+      - "5055:5055"  # API
+    environment:
+      # AI Provider (choose ONE)
+      - OPENAI_COMPATIBLE_BASE_URL=http://49.51.37.239:3006/v1
+      - OPENAI_COMPATIBLE_API_KEY=sk-eEHuvDfMPJf3mKQOmdDVHDq30RsA9RXKd4LhUtGxNgiXYtPq
+      # - OPENAI_API_KEY=sk-eEHuvDfMPJf3mKQOmdDVHDq30RsA9RXKd4LhUtGxNgiXYtPq  # Your OpenAI key
+      # - ANTHROPIC_API_KEY=sk-ant-...  # Or Anthropic
+      # - GOOGLE_API_KEY=...  # Or Google
+
+      # Database
+      - SURREAL_URL=ws://surrealdb:8000/rpc
+      - SURREAL_USER=root
+      - SURREAL_PASSWORD=password
+      - SURREAL_NAMESPACE=open_notebook
+      - SURREAL_DATABASE=open_notebook
+    volumes:
+      - notebook_data:/app/data
+    depends_on:
+      - surrealdb
+    restart: always
+
+volumes:
+  surreal_data:
+  notebook_data:
