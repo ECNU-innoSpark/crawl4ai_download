@@ -4,3 +4,6 @@
 [submodule "TradingAgent"]
 	path = TradingAgent
 	url = https://github.com/Titan-Frank/TradingAgent
+[submodule "ms-agent"]
+	path = ms-agent
+	url = https://github.com/Titan-Frank/ms-agent.git
