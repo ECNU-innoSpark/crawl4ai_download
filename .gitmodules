@@ -1,3 +1,12 @@
 [submodule "deepresearch"]
 	path = deepresearch
 	url = https://github.com/ECNU-innoSpark/deepresearch.git
+[submodule "ragflow"]
+	path = ragflow
+	url = https://github.com/ECNU-innoSpark/crawl4ai_download.git
+[submodule "TradingAgent"]
+	path = TradingAgent
+	url = https://github.com/Titan-Frank/TradingAgent
+[submodule "ms-agent"]
+	path = ms-agent
+	url = https://github.com/Titan-Frank/ms-agent.git
