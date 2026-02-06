@@ -1,0 +1,3 @@
+[submodule "deepresearch"]
+	path = deepresearch
+	url = https://github.com/ECNU-innoSpark/deepresearch.git
